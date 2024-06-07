@@ -22,6 +22,8 @@ dependencies {
     compileOnly(project(":code:scenes"))
     compileOnly(project(":code:richediting"))
     compileOnly(project(":code:4diac-integration"))
+
+    implementation(project(":code:extensions"))
 }
 
 mps {

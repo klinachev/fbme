@@ -9,21 +9,28 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.ui.content.ContentFactory
-import org.fbme.ide.platform.debugger.DevicesFacade
+import jetbrains.mps.generator.impl.CloneUtil
+import jetbrains.mps.ide.actions.MPSCommonDataKeys
+import jetbrains.mps.smodel.tempmodel.TempModuleOptions
+import jetbrains.mps.smodel.tempmodel.TemporaryModels
 import org.fbme.debugger.RuntimeTraceSynchronizer
-import org.fbme.ide.platform.debugger.WatchedValueListener
-import org.fbme.ide.platform.debugger.WatcherFacade
 import org.fbme.debugger.common.state.ResourceState
 import org.fbme.debugger.common.trace.ExecutionTrace
 import org.fbme.debugger.common.ui.DebuggerPanel
 import org.fbme.debugger.explanation.ExplanationProducer
+import org.fbme.extensions.adapter.AdapterRevealService
+import org.fbme.ide.iec61499.repository.PlatformRepository
 import org.fbme.ide.iec61499.snashot.DeclarationSnapshot.Companion.create
+import org.fbme.ide.platform.debugger.DevicesFacade
+import org.fbme.ide.platform.debugger.WatchedValueListener
+import org.fbme.ide.platform.debugger.WatcherFacade
 import org.fbme.ide.richediting.actions.*
 import org.fbme.ide.richediting.inspections.Inspection
 import org.fbme.ide.richediting.inspections.InspectionManagerImpl
 import org.fbme.lib.iec61499.declarations.DeviceDeclaration
 import org.fbme.lib.iec61499.declarations.ResourceDeclaration
 import org.fbme.lib.iec61499.instances.NetworkInstance
+import org.jetbrains.mps.openapi.model.SModel
 import java.io.IOException
 
 
@@ -38,7 +45,12 @@ class DeploymentAction_DeployResource : AnAction(), DumbAware {
     override fun actionPerformed(event: AnActionEvent) {
         event.executeWriteActionInEditor {
             val cell = event.cell!!
-            val resourceDeclaration = event.element<ResourceDeclaration>()!!
+            val repository = event.repository
+            val model = createRevealedModel(event.getData(MPSCommonDataKeys.CONTEXT_MODEL)!!, repository)
+            val sourceResourceDeclaration = event.element<ResourceDeclaration>()!!
+            val resourceDeclaration = repository.adapter<ResourceDeclaration>(
+                model.rootNodes.first { it.name == sourceResourceDeclaration.name }
+            )
             val deviceDeclaration = resourceDeclaration.container as DeviceDeclaration
             val project = event.project!!
             val mpsProject = event.mpsProject!!
@@ -104,5 +116,13 @@ class DeploymentAction_DeployResource : AnAction(), DumbAware {
             toolWindow.contentManager.setSelectedContent(content, true)
             toolWindow.show()
         }
+    }
+
+    private fun createRevealedModel(model: SModel, repository: PlatformRepository): SModel {
+        val adapterRevealApi = AdapterRevealService(owner = repository)
+        val tmpModel = TemporaryModels.getInstance().createEditable(false, TempModuleOptions.forDefaultModule())
+        CloneUtil(model, tmpModel).cloneModel()
+        adapterRevealApi.revealModel(tmpModel)
+        return tmpModel
     }
 }
